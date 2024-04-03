@@ -66,9 +66,10 @@ def get_c4(nsamples, seed, seqlen, tokenizer):
     return trainloader, valenc
 
 
-def get_urbantext(nsamples, seed, seqlen, tokenizer, train_data_path, test_data_path):
-    traindata = load_dataset('json', data_files=train_data_path)['train']
-    testdata = load_dataset('json', data_files=test_data_path)['train']
+def get_ubertext(nsamples, seed, seqlen, tokenizer):
+    dataset = load_dataset("mshamrai/lang-pruning-uk-uber-text-2")
+    traindata = dataset['train']
+    testdata = dataset['test']
 
     random.seed(seed)
 
@@ -97,9 +98,10 @@ def get_urbantext(nsamples, seed, seqlen, tokenizer, train_data_path, test_data_
     return trainloader, testenc
 
 
-# Function to select the appropriate loader based on dataset name
-def get_loaders(name, nsamples=128, seed=0, seqlen=2048, tokenizer=None):
-    if 'wikitext2' in name:
-        return get_wikitext2(nsamples, seed, seqlen, tokenizer)
-    if "c4" in name:
-        return get_c4(nsamples, seed, seqlen, tokenizer)
+def get_train_c4_test_ubertext(nsamples, seed, seqlen, tokenizer):
+
+    _, test_dataloader = get_ubertext(nsamples, seed, seqlen, tokenizer)
+
+    train_dataloader, _ = get_c4(nsamples, seed, seqlen, tokenizer)
+
+    return train_dataloader, test_dataloader

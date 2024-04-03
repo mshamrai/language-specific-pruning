@@ -5,9 +5,9 @@ import torch
 from transformers import AutoTokenizer
 from importlib.metadata import version
 
-from lib.prune import prune_wanda, prune_magnitude, prune_sparsegpt, prune_ablate, check_sparsity, find_layers
-from lib.eval import eval_ppl, eval_ppl_urbantext
-from lib.data import get_urbantext, get_c4
+from lib.prune import prune_wanda, prune_sparsegpt, check_sparsity
+from lib.eval import eval_ppl_urbantext
+from lib.data import get_ubertext, get_train_c4_test_ubertext
 from lib.utils import get_memory_footprint, get_llm
 
 
@@ -31,9 +31,11 @@ def main():
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
 
     parser.add_argument("--load_bit", type=str, default=None)
-    parser.add_argument("--train_data_path", type=str, default=None)
-    parser.add_argument("--test_data_path", type=str, default=None)
+    # parser.add_argument("--train_data_path", type=str, default=None)
+    # parser.add_argument("--test_data_path", type=str, default=None)
     parser.add_argument("--replace_sparse_layers", action="store_true", help="whether to use replace layers with 2:4 semi-sparse analogue")
+    parser.add_argument("--eval_only", action="store_true", help="whether to only evaluate the dense model without pruning")
+    parser.add_argument("--prune_on_c4", action="store_true", help="whether to prune the model on c4 dataset")
 
     parser.add_argument("--device", type=str, default="cuda:0")
     args = parser.parse_args()
@@ -66,40 +68,40 @@ def main():
     print("use device ", device)
 
     print("loading calibdation data")
-    _, test_dataloader = get_urbantext(nsamples=args.nsamples,
-                                                      seed=args.seed,
-                                                      seqlen=model.seqlen,
-                                                      tokenizer=tokenizer,
-                                                      train_data_path=args.train_data_path, 
-                                                      test_data_path=args.test_data_path)
-
-    train_dataloader, _ = get_c4(nsamples=args.nsamples,
-                                                      seed=args.seed,
-                                                      seqlen=model.seqlen,
-                                                      tokenizer=tokenizer,)
+    if args.prune_on_c4:
+        train_dataloader, test_dataloader = get_train_c4_test_ubertext(nsamples=args.nsamples,
+                                                                        seed=args.seed,
+                                                                        seqlen=model.seqlen,
+                                                                        tokenizer=tokenizer)
+    else:
+        train_dataloader, test_dataloader = get_ubertext(nsamples=args.nsamples,
+                                                        seed=args.seed,
+                                                        seqlen=model.seqlen,
+                                                        tokenizer=tokenizer)
     print("dataset loading complete")
 
     # ppl_test = eval_ppl_urbantext(model, test_dataloader, device)
     # print(f"perplexity before pruning: {ppl_test}")
 
-    if args.sparsity_ratio != 0:
-        print("pruning starts")
-        if args.prune_method == "wanda":
-            prune_wanda(args, model, train_dataloader, device, prune_n=prune_n, prune_m=prune_m)
-        elif args.prune_method == "sparsegpt":
-            prune_sparsegpt(args, model, train_dataloader, device, prune_n=prune_n, prune_m=prune_m)
+    if not args.eval_only:
 
-    print("Memory footprint after pruning: " + get_memory_footprint(model))
-    # memory_reporter = MemReporter(model)
-    # memory_reporter.report()
+        if args.sparsity_ratio != 0:
+            print("pruning starts")
+            if args.prune_method == "wanda":
+                prune_wanda(args, model, train_dataloader, device, prune_n=prune_n, prune_m=prune_m)
+            elif args.prune_method == "sparsegpt":
+                prune_sparsegpt(args, model, train_dataloader, device, prune_n=prune_n, prune_m=prune_m)
 
-    ################################################################
-    print("*"*30)
-    sparsity_ratio = check_sparsity(model)
-    print(f"sparsity sanity check {sparsity_ratio:.4f}")
-    print("*"*30)
-    ################################################################
-    # ppl_test = eval_ppl(args, model, tokenizer, device)
+        print("Memory footprint after pruning: " + get_memory_footprint(model))
+        # memory_reporter = MemReporter(model)
+        # memory_reporter.report()
+
+        ################################################################
+        print("*"*30)
+        sparsity_ratio = check_sparsity(model)
+        print(f"sparsity sanity check {sparsity_ratio:.4f}")
+        print("*"*30)
+        ################################################################
     ppl_test = eval_ppl_urbantext(model, test_dataloader, device)
     print(f"perplexity after pruning: {ppl_test}")
 

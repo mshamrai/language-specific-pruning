@@ -1,1 +1,1 @@
-# language-specific-pruning
+# Language-Specific Pruning for Efficient Reduction of Large Language Models

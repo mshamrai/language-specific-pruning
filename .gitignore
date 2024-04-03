@@ -158,3 +158,4 @@ cython_debug/
 #.idea/
 
 src/data/splitted_data/
+src/llm_weights

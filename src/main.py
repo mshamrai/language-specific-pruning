@@ -22,20 +22,20 @@ def main():
     parser.add_argument('--model', type=str, help='LLaMA model')
     parser.add_argument('--seed', type=int, default=0, help='Seed for sampling the calibration data.')
     parser.add_argument('--nsamples', type=int, default=128, help='Number of calibration samples.')
-    parser.add_argument('--sparsity_ratio', type=float, default=0, help='Sparsity level')
-    parser.add_argument("--sparsity_type", type=str, choices=["unstructured", "4:8", "2:4"])
-    parser.add_argument("--prune_method", type=str, choices=["wanda", "sparsegpt"])
+    parser.add_argument('--sparsity_ratio', type=float, default=0.5, help='Sparsity level')
+    parser.add_argument("--sparsity_type", type=str, default=None, choices=["unstructured", "4:8", "2:4"])
+    parser.add_argument("--prune_method", type=str, default=None, choices=["wanda", "sparsegpt"])
     parser.add_argument("--cache_dir", default="llm_weights", type=str )
-    parser.add_argument('--use_variant', action="store_true", help="whether to use the wanda variant described in the appendix")
+    parser.add_argument('--use_variant', action="store_true", help="Whether to use the wanda variant described in the appendix")
     parser.add_argument('--save', type=str, default=None, help='Path to save results.')
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
 
-    parser.add_argument("--load_bit", type=str, default=None)
+    parser.add_argument("--load_bit", type=str, default=None, choices=["4", "8"], help="Whether to use load quantized model (mostly for evaluation)")
     # parser.add_argument("--train_data_path", type=str, default=None)
     # parser.add_argument("--test_data_path", type=str, default=None)
-    parser.add_argument("--replace_sparse_layers", action="store_true", help="whether to use replace layers with 2:4 semi-sparse analogue")
-    parser.add_argument("--eval_only", action="store_true", help="whether to only evaluate the dense model without pruning")
-    parser.add_argument("--prune_on_c4", action="store_true", help="whether to prune the model on c4 dataset")
+    parser.add_argument("--replace_sparse_layers", action="store_true", help="Whether use replace linear layers with 2:4 semi-sparse analogue")
+    parser.add_argument("--eval_only", action="store_true", help="Whether to only evaluate the dense model without pruning")
+    parser.add_argument("--prune_on_c4", action="store_true", help="Whether to prune the model on c4 dataset")
 
     parser.add_argument("--device", type=str, default="cuda:0")
     args = parser.parse_args()
@@ -46,7 +46,7 @@ def main():
 
     # Handling n:m sparsity
     prune_n, prune_m = 0, 0
-    if args.sparsity_type != "unstructured":
+    if args.sparsity_type and args.sparsity_type != "unstructured":
         assert args.sparsity_ratio == 0.5, "sparsity ratio must be 0.5 for structured N:M sparsity"
         prune_n, prune_m = map(int, args.sparsity_type.split(":"))
 
@@ -97,20 +97,22 @@ def main():
         # memory_reporter.report()
 
         ################################################################
-        print("*"*30)
-        sparsity_ratio = check_sparsity(model)
-        print(f"sparsity sanity check {sparsity_ratio:.4f}")
-        print("*"*30)
+        if not args.replace_sparse_layers:
+            print("*"*30)
+            sparsity_ratio = check_sparsity(model)
+            print(f"sparsity sanity check {sparsity_ratio:.4f}")
+            print("*"*30)
         ################################################################
     ppl_test = eval_ppl_urbantext(model, test_dataloader, device)
     print(f"perplexity after pruning: {ppl_test}")
-
-    if not os.path.exists(args.save):
-        os.makedirs(args.save)
-    save_filepath = os.path.join(args.save, f"log_{args.prune_method}.txt")
-    with open(save_filepath, "w") as f:
-        print("method\tactual_sparsity\tppl_test", file=f, flush=True)
-        print(f"{args.prune_method}\t{args.sparsity_ratio:.4f}\t{ppl_test:.4f}", file=f, flush=True)
+    
+    if args.save:
+        if not os.path.exists(args.save):
+            os.makedirs(args.save)
+        save_filepath = os.path.join(args.save, f"log_{args.prune_method}.txt")
+        with open(save_filepath, "w") as f:
+            print("method\tactual_sparsity\tppl_test", file=f, flush=True)
+            print(f"{args.prune_method}\t{args.sparsity_ratio:.4f}\t{ppl_test:.4f}", file=f, flush=True)
 
     if args.save_model:
         model.save_pretrained(args.save_model)

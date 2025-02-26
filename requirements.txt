@@ -1,0 +1,7 @@
+numpy==1.26.2
+torch==2.1.2
+transformers==4.38.1
+bitsandbytes==0.42.0
+datasets==2.16.1
+accelerate==0.25.0
+sentencepiece==0.1.99
